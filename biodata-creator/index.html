@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Biodata Creator</title>
+<meta name="description" content="Create a beautiful biodata with your choice of template and export it as a PDF.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Marcellus&family=Yatra+One&family=Noto+Sans+Devanagari:wght@500;700&family=Karla:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <header class="app-header">
+    <div class="app-header__mark" aria-hidden="true">॥</div>
+    <h1 class="app-header__title">Biodata Creator</h1>
+    <p class="app-header__subtitle">Fill in your details, pick a template, download a beautifully formatted biodata</p>
+  </header>
+
+  <div class="app-layout">
+
+    <!-- ============ EDITOR PANEL ============ -->
+    <aside class="editor-panel" aria-label="Biodata editor">
+
+      <section class="control-block">
+        <h2 class="control-block__title"><span class="control-block__eyebrow">01</span> Choose a template</h2>
+        <div class="template-grid" id="templateGrid"></div>
+      </section>
+
+      <section class="control-block">
+        <h2 class="control-block__title"><span class="control-block__eyebrow">02</span> Your photograph</h2>
+        <div class="photo-control">
+          <div class="photo-control__preview" id="photoPreviewWrap">
+            <span id="photoPlaceholderText">No photo</span>
+            <img id="photoPreviewImg" alt="Your uploaded photo" hidden>
+          </div>
+          <div class="photo-control__actions">
+            <label class="btn btn--secondary btn--small" for="photoInput">Upload photo</label>
+            <input type="file" id="photoInput" accept="image/*" hidden>
+            <button type="button" class="btn btn--ghost btn--small" id="removePhotoBtn" hidden>Remove</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="control-block">
+        <h2 class="control-block__title"><span class="control-block__eyebrow">03</span> Your details</h2>
+        <p class="control-block__hint">Edit any label or value, add fields you need, and delete the ones you don't.</p>
+        <div id="sectionsEditor"></div>
+        <button type="button" class="btn btn--secondary" id="addSectionBtn">+ Add a section</button>
+      </section>
+
+      <section class="control-block control-block--danger-zone">
+        <button type="button" class="btn btn--ghost btn--small" id="resetBtn">Reset everything</button>
+      </section>
+
+    </aside>
+
+    <!-- ============ PREVIEW PANEL ============ -->
+    <main class="preview-panel" aria-label="Biodata preview">
+      <div class="preview-toolbar">
+        <span class="preview-toolbar__status" id="autosaveStatus">Autosaved to this browser</span>
+        <div class="preview-toolbar__actions">
+          <button type="button" class="btn btn--ghost btn--small" id="printBtn">Print</button>
+          <button type="button" class="btn btn--primary" id="exportPdfBtn">Download PDF</button>
+        </div>
+      </div>
+
+      <div class="preview-scroll">
+        <div class="biodata-sheet" id="biodataPreview">
+          <!-- rendered dynamically by js/app.js -->
+        </div>
+      </div>
+    </main>
+
+  </div>
+
+  <footer class="app-footer">
+    <p>Everything you type stays on your own device — nothing is uploaded anywhere.</p>
+  </footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="js/templates.js"></script>
+<script src="js/pdf-export.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
