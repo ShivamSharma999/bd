@@ -1,0 +1,58 @@
+name: Extract ZIP File to Root
+
+# This tells the script when to run
+on:
+  push:
+    paths:
+      - 'sm.zip'            # Triggers automatically when you upload or change sm.zip
+  workflow_dispatch:        # Allows you to manually trigger it with a button click on GitHub
+
+# Allow the workflow to push commits back (read/write)
+permissions:
+  contents: write
+
+jobs:
+  unzip-job:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Download your repository code onto the runner machine
+      - name: Checkout Code Base
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      # Step 1.5: List root to help debug missing file issues
+      - name: Show workspace root (debug)
+        run: |
+          echo "Workspace contents:"
+          ls -la
+
+      # Step 2: Unzip the file directly into the workspace root
+      - name: Unzip sm.zip archive
+        run: |
+          if [ -f "sm.zip" ]; then
+            unzip -o sm.zip -d ./
+            echo "Extraction successful!"
+          else
+            echo "Error: sm.zip was not found in the root directory."
+            exit 1
+          fi
+
+      # Step 3: Automatically commit and push changes back to your branch
+      - name: Commit Extracted Files
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add -A
+
+          # Only commit if new or altered files exist to prevent runner crashes
+          if git status --porcelain | grep .; then
+            git commit -m "Automated unzip: Extracted sm.zip contents to root" || echo "Nothing to commit"
+            git push
+          else
+            echo "No changes detected to commit."
+          fi
