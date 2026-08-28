@@ -428,6 +428,11 @@ button, input {
   padding: 32px 16px;
   display: flex;
   justify-content: center;
+  align-items: flex-start;
+}
+
+.sheet-frame {
+  flex-shrink: 0;
 }
 
 /* =========================================================
@@ -438,7 +443,6 @@ button, input {
 .biodata-sheet {
   --sheet-pad: 48px;
   width: 794px;
-  max-width: 100%;
   min-height: 1000px;
   flex-shrink: 0;
   background: var(--sheet-bg);
@@ -491,7 +495,13 @@ button, input {
 
 .sheet-emblem__img {
   width: 108px;
+  line-height: 0;
+}
+
+.sheet-emblem__img svg {
+  width: 100%;
   height: auto;
+  display: block;
 }
 
 .sheet-emblem__om {
@@ -700,6 +710,12 @@ button, input {
   .biodata-sheet {
     box-shadow: none;
     margin: 0 auto;
+  }
+
+  .sheet-frame {
+    transform: none !important;
+    width: auto !important;
+    height: auto !important;
   }
 
   @page {

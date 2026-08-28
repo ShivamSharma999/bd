@@ -33,14 +33,16 @@ function findFieldByLabel(state, labelPattern) {
  * Exports the #biodataPreview element to a PDF file.
  * Shows a small busy state on the trigger button while working.
  */
-function exportPreviewToPDF(state, buttonEl) {
+async function exportPreviewToPDF(state, buttonEl) {
   const sheetEl = document.getElementById('biodataPreview');
+  const frameEl = document.getElementById('sheetFrame');
   if (!sheetEl) return;
 
   if (typeof html2pdf === 'undefined') {
     alert(
-      'The PDF library could not be loaded. Please check your internet connection and try again ' +
-      '(this app downloads a small PDF-generation library the first time you export).'
+      'The PDF library did not load, so a PDF can\'t be created right now. ' +
+      'Try reloading the page — if it keeps happening, the js/vendor/html2pdf.bundle.min.js ' +
+      'file may be missing from this copy of the app.'
     );
     return;
   }
@@ -51,29 +53,72 @@ function exportPreviewToPDF(state, buttonEl) {
     buttonEl.textContent = 'Preparing PDF…';
   }
 
-  const opt = {
-    margin: 0,
-    filename: suggestedFileName(state),
-    image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
-    jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
-    pagebreak: { mode: ['css', 'legacy'] }
-  };
+  // --- Neutralise anything that could make html2canvas capture the
+  //     wrong region: a scrolled page/panel, or the responsive scale
+  //     transform used to fit small screens. Both are restored in the
+  //     `finally` block below regardless of success or failure. ---
+  const scrollEl = document.querySelector('.preview-scroll');
+  const prevWindowScroll = { x: window.scrollX, y: window.scrollY };
+  const prevInnerScroll = scrollEl ? { top: scrollEl.scrollTop, left: scrollEl.scrollLeft } : null;
+  const prevFrameStyle = frameEl
+    ? { transform: frameEl.style.transform, width: frameEl.style.width, height: frameEl.style.height }
+    : null;
 
-  html2pdf()
-    .set(opt)
-    .from(sheetEl)
-    .save()
-    .catch((err) => {
-      console.error('PDF export failed', err);
-      alert('Sorry, something went wrong while creating the PDF. Please try again.');
-    })
-    .finally(() => {
-      if (buttonEl) {
-        buttonEl.disabled = false;
-        buttonEl.textContent = originalLabel;
-      }
-    });
+  try {
+    window.scrollTo(0, 0);
+    if (scrollEl) {
+      scrollEl.scrollTop = 0;
+      scrollEl.scrollLeft = 0;
+    }
+    if (frameEl) {
+      frameEl.style.transform = 'none';
+      frameEl.style.width = '';
+      frameEl.style.height = '';
+    }
+
+    // Let the browser apply the layout changes above before we capture.
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+    const opt = {
+      margin: 0,
+      filename: suggestedFileName(state),
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        scrollX: 0,
+        scrollY: 0,
+        windowWidth: sheetEl.scrollWidth,
+        windowHeight: sheetEl.scrollHeight
+      },
+      jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
+      pagebreak: { mode: ['css', 'legacy'] }
+    };
+
+    await html2pdf().set(opt).from(sheetEl).save();
+  } catch (err) {
+    console.error('PDF export failed', err);
+    alert('Sorry, something went wrong while creating the PDF. Please try again.');
+  } finally {
+    if (frameEl && prevFrameStyle) {
+      frameEl.style.transform = prevFrameStyle.transform;
+      frameEl.style.width = prevFrameStyle.width;
+      frameEl.style.height = prevFrameStyle.height;
+    }
+    if (typeof fitPreviewToContainer === 'function') fitPreviewToContainer();
+
+    window.scrollTo(prevWindowScroll.x, prevWindowScroll.y);
+    if (scrollEl && prevInnerScroll) {
+      scrollEl.scrollTop = prevInnerScroll.top;
+      scrollEl.scrollLeft = prevInnerScroll.left;
+    }
+
+    if (buttonEl) {
+      buttonEl.disabled = false;
+      buttonEl.textContent = originalLabel;
+    }
+  }
 }
 
 /**

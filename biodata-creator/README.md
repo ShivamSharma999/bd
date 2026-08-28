@@ -9,10 +9,11 @@ need, and download the result as a PDF.
 No build step and no server required — just open `index.html` in a
 modern browser (Chrome, Edge, Firefox, Safari).
 
-- **Internet connection needed once per session:** the app loads three
-  small things from the internet the first time the page opens — two
-  Google Fonts and the `html2pdf.js` library used for the PDF export
-  button. Everything else runs fully offline.
+- **Works fully offline.** The PDF export library is bundled in
+  `js/vendor/`, so it works without an internet connection. The two
+  Google Fonts used for headings load from the internet on first open;
+  if there's no connection, the page just falls back to your system
+  font — nothing breaks.
 - **Your data never leaves your device.** There's no backend — details
   and your uploaded photo are kept only in this browser's local storage
   on this machine, so the page remembers your work if you close and
@@ -28,9 +29,13 @@ biodata-creator/
 ├── js/
 │   ├── templates.js      Template list + template-picker rendering
 │   ├── pdf-export.js     PDF export (html2pdf.js) and print fallback
-│   └── app.js            State, rendering, and all editing behaviour
+│   ├── app.js             State, rendering, and all editing behaviour
+│   └── vendor/
+│       └── html2pdf.bundle.min.js   Bundled PDF library (MIT licensed)
 ├── assets/
-│   └── ganesha.svg        Original decorative Ganesha emblem (header art)
+│   └── ganesha.svg        Standalone copy of the emblem artwork for
+│                           reference (the app itself uses a copy
+│                           inlined in js/app.js — see note below)
 └── README.md
 ```
 
@@ -61,3 +66,29 @@ biodata-creator/
   `css/style.css` (copy one of the existing template blocks as a
   starting point — each one only needs to set a handful of CSS
   variables).
+- The Ganesha artwork is defined twice on purpose: once as the
+  standalone `assets/ganesha.svg` (handy if you want to reuse it
+  elsewhere), and once as the `GANESHA_EMBLEM_SVG` constant near the
+  top of `js/app.js`, which is what actually gets drawn into the
+  preview. It's inlined there — rather than loaded as an `<img>` —
+  so the PDF export always has direct access to it with no separate
+  file request involved. If you swap the artwork, update both copies.
+
+## Troubleshooting
+
+**PDF downloads but looks blank or cut off.** This was an issue in an
+earlier version of this app: exporting while the page was scrolled
+down (very easy to do on a phone, since you scroll to reach the
+Download button) could capture the wrong area. It's fixed now — export
+resets the scroll position and a temporary display-only scaling effect
+before capturing, then puts both back afterwards. If you still see a
+blank PDF, check the browser's console for errors and make sure
+`js/vendor/html2pdf.bundle.min.js` was included when you copied/shared
+the folder — it's a ~1MB file some tools skip by mistake.
+
+**Layout looks cramped or text wraps oddly on a small screen.** The
+sheet is designed at a fixed print width (like a real page) and is
+scaled down to fit your screen automatically. If you've edited the CSS
+and this stops working, check that `.biodata-sheet` still has a fixed
+`width` and no `max-width`, since that combination is what lets
+`js/app.js`'s `fitPreviewToContainer()` compute the right scale.

@@ -18,6 +18,79 @@
  * -------------------------------------------------------------
  */
 
+const GANESHA_EMBLEM_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 280" role="img" aria-label="Decorative emblem of Lord Ganesha">
+  <defs>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F9E29B"/>
+      <stop offset="50%" stop-color="#D9A63E"/>
+      <stop offset="100%" stop-color="#B87F24"/>
+    </linearGradient>
+    <radialGradient id="plaque" cx="50%" cy="42%" r="70%">
+      <stop offset="0%" stop-color="#7A2530"/>
+      <stop offset="100%" stop-color="#4A1418"/>
+    </radialGradient>
+  </defs>
+
+  <!-- mandala plaque background -->
+  <circle cx="120" cy="145" r="120" fill="url(#plaque)"/>
+  <circle cx="120" cy="145" r="113" fill="none" stroke="url(#gold)" stroke-width="2.5"/>
+  <circle cx="120" cy="145" r="104" fill="none" stroke="url(#gold)" stroke-width="1" stroke-dasharray="1 7"/>
+
+  <!-- ears (drawn first so head layers over the join) -->
+  <ellipse cx="62" cy="118" rx="27" ry="35" fill="url(#gold)" stroke="#6E3E12" stroke-width="1.6" transform="rotate(-14 62 118)"/>
+  <ellipse cx="178" cy="118" rx="27" ry="35" fill="url(#gold)" stroke="#6E3E12" stroke-width="1.6" transform="rotate(14 178 118)"/>
+  <ellipse cx="66" cy="118" rx="14" ry="21" fill="#7A2530" opacity="0.35" transform="rotate(-14 66 118)"/>
+  <ellipse cx="174" cy="118" rx="14" ry="21" fill="#7A2530" opacity="0.35" transform="rotate(14 174 118)"/>
+
+  <!-- crown -->
+  <path d="M99 78 Q120 52 141 78 L136 90 Q120 78 104 90 Z" fill="url(#gold)" stroke="#6E3E12" stroke-width="1.5"/>
+  <path d="M120 52 L127 65 L113 65 Z" fill="url(#gold)" stroke="#6E3E12" stroke-width="1.4"/>
+  <circle cx="120" cy="47" r="5" fill="url(#gold)" stroke="#6E3E12" stroke-width="1.2"/>
+
+  <!-- head -->
+  <ellipse cx="120" cy="118" rx="41" ry="37" fill="url(#gold)" stroke="#6E3E12" stroke-width="1.8"/>
+
+  <!-- tilak -->
+  <path d="M118 98 Q120 90 122 98 Q120 104 118 98 Z" fill="#8B1E2B"/>
+
+  <!-- eyes -->
+  <path d="M103 116 Q109 110 115 116 Q109 121 103 116 Z" fill="#3A2210"/>
+  <path d="M125 116 Q131 110 137 116 Q131 121 125 116 Z" fill="#3A2210"/>
+
+  <!-- belly (drawn before limbs so shoulders/trunk attach on top of it) -->
+  <ellipse cx="120" cy="212" rx="59" ry="46" fill="url(#gold)" stroke="#6E3E12" stroke-width="1.8"/>
+
+  <!-- dhoti / lower garment -->
+  <path d="M63 230 Q120 264 177 230 Q178 248 120 258 Q62 248 63 230 Z" fill="#8B2B2B" stroke="#6E3E12" stroke-width="1.4"/>
+
+  <!-- right arm (viewer's left), raised in blessing -->
+  <path d="M84 190 Q60 180 55 158" fill="none" stroke="#6E3E12" stroke-width="16" stroke-linecap="round"/>
+  <path d="M84 190 Q60 180 55 158" fill="none" stroke="url(#gold)" stroke-width="13" stroke-linecap="round"/>
+  <circle cx="53" cy="153" r="10" fill="url(#gold)" stroke="#6E3E12" stroke-width="1.4"/>
+
+  <!-- left arm (viewer's right), resting with sweet bowl -->
+  <path d="M160 196 Q173 210 158 222" fill="none" stroke="#6E3E12" stroke-width="16" stroke-linecap="round"/>
+  <path d="M160 196 Q173 210 158 222" fill="none" stroke="url(#gold)" stroke-width="13" stroke-linecap="round"/>
+  <path d="M144 220 Q157 214 170 220 Q166 233 157 233 Q148 233 144 220 Z" fill="#F4DFA8" stroke="#6E3E12" stroke-width="1.3"/>
+
+  <!-- trunk, curling forward on top of the belly -->
+  <path d="M120 124 C114 142 130 150 124 165 C121 175 133 178 138 168" fill="none" stroke="#6E3E12" stroke-width="18" stroke-linecap="round"/>
+  <path d="M120 124 C114 142 130 150 124 165 C121 175 133 178 138 168" fill="none" stroke="url(#gold)" stroke-width="15" stroke-linecap="round"/>
+
+  <!-- modak sweet at trunk tip -->
+  <path d="M138 168 Q150 162 153 175 Q154 187 142 188 Q131 187 132 176 Q134 169 138 168 Z" fill="#F4DFA8" stroke="#6E3E12" stroke-width="1.4"/>
+  <path d="M138 171 L145 180 M143 168 L149 179" stroke="#6E3E12" stroke-width="1"/>
+
+  <!-- mouse companion, tucked beside the belly -->
+  <g transform="translate(-8 4)">
+    <ellipse cx="92" cy="252" rx="15" ry="8" fill="#5B4128" stroke="#3D2A18" stroke-width="1"/>
+    <circle cx="104" cy="246" r="6" fill="#5B4128" stroke="#3D2A18" stroke-width="1"/>
+    <circle cx="101" cy="240" r="2.2" fill="#5B4128"/>
+    <circle cx="108" cy="240" r="2.2" fill="#5B4128"/>
+    <path d="M78 253 Q69 257 71 248" fill="none" stroke="#3D2A18" stroke-width="1.5"/>
+  </g>
+</svg>`;
+
 const STORAGE_KEY = 'biodata-creator:v1';
 
 let state = null;
@@ -102,6 +175,40 @@ function defaultState() {
       }
     ]
   };
+}
+
+/* ---------------------------------------------------------- */
+/* Responsive scaling                                           */
+/* -------------------------------------------------------------
+ * The sheet itself always stays at its natural print width
+ * (794px, ~A4 at 96dpi) so PDF export is always full quality and
+ * consistent regardless of device. On screen, #sheetFrame scales
+ * that sheet down with a CSS transform to fit whatever width is
+ * available, so phones show a crisp, fully-visible miniature
+ * instead of the browser auto-zooming the whole page out.
+ * ---------------------------------------------------------- */
+
+let resizeDebounce = null;
+
+function fitPreviewToContainer() {
+  const scrollEl = document.querySelector('.preview-scroll');
+  const frame = document.getElementById('sheetFrame');
+  const sheet = document.getElementById('biodataPreview');
+  if (!scrollEl || !frame || !sheet) return;
+
+  const available = scrollEl.clientWidth - 32; // small side margin
+  const natural = sheet.offsetWidth || 794;
+  const scale = Math.max(0.01, Math.min(1, available / natural));
+
+  frame.style.transformOrigin = 'top left';
+  frame.style.transform = `scale(${scale})`;
+  frame.style.width = natural * scale + 'px';
+  frame.style.height = sheet.offsetHeight * scale + 'px';
+}
+
+function scheduleFitOnResize() {
+  clearTimeout(resizeDebounce);
+  resizeDebounce = setTimeout(fitPreviewToContainer, 100);
 }
 
 /* ---------------------------------------------------------- */
@@ -235,14 +342,18 @@ function renderPreview() {
 
   sheet.innerHTML = `
     <div class="sheet-photo">${photoHtml}</div>
-    <div class="sheet-emblem">
-      <img src="assets/ganesha.svg" alt="Lord Ganesha" class="sheet-emblem__img">
-      <div class="sheet-emblem__om" aria-hidden="true">ॐ</div>
+    <div class="sheet-heading">
+      <div class="sheet-emblem">
+        <span class="sheet-emblem__img">${GANESHA_EMBLEM_SVG}</span>
+        <div class="sheet-emblem__om" aria-hidden="true">ॐ</div>
+      </div>
+      <h1 class="sheet-title">Biodata</h1>
+      ${name ? `<p class="sheet-subtitle">${escapeHtml(name)}</p>` : ''}
     </div>
-    <h1 class="sheet-title">Biodata</h1>
-    ${name ? `<p class="sheet-subtitle">${escapeHtml(name)}</p>` : ''}
     <div class="sheet-sections">${sectionsHtml || emptyStateHtml()}</div>
   `;
+
+  fitPreviewToContainer();
 }
 
 function emptyStateHtml() {
@@ -442,4 +553,11 @@ document.addEventListener('DOMContentLoaded', () => {
   renderAll();
   initSectionsEditorEvents();
   initGlobalControls();
+  fitPreviewToContainer();
+
+  window.addEventListener('resize', scheduleFitOnResize);
+
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(fitPreviewToContainer).catch(() => {});
+  }
 });
