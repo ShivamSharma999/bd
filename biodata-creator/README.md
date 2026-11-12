@@ -66,13 +66,6 @@ biodata-creator/
   `css/style.css` (copy one of the existing template blocks as a
   starting point — each one only needs to set a handful of CSS
   variables).
-- The Ganesha artwork is defined twice on purpose: once as the
-  standalone `assets/ganesha.svg` (handy if you want to reuse it
-  elsewhere), and once as the `GANESHA_EMBLEM_SVG` constant near the
-  top of `js/app.js`, which is what actually gets drawn into the
-  preview. It's inlined there — rather than loaded as an `<img>` —
-  so the PDF export always has direct access to it with no separate
-  file request involved. If you swap the artwork, update both copies.
 
 ## Troubleshooting
 

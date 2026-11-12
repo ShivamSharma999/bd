@@ -459,8 +459,8 @@ button, input {
   position: absolute;
   top: var(--sheet-pad);
   right: var(--sheet-pad);
-  width: 108px;
-  height: 138px;
+  width: 159px;
+  height: 208px;
   border: 2px solid var(--sheet-accent);
   background: rgba(0, 0, 0, 0.03);
   display: flex;
@@ -498,7 +498,7 @@ button, input {
   line-height: 0;
 }
 
-.sheet-emblem__img svg {
+.sheet-emblem__img img {
   width: 100%;
   height: auto;
   display: block;
@@ -596,7 +596,12 @@ button, input {
   --sheet-accent-soft: #e9c77e;
   --sheet-heading-font: var(--font-display);
   --sheet-border-css: 10px double #c9922b;
+  --sheet-radius: 10px;
   --motif-transform: rotate(45deg);
+}
+
+.template-classic .sheet-photo {
+  border-radius: 10px;
 }
 
 /* =========================================================
@@ -611,6 +616,7 @@ button, input {
   --sheet-border-css: 1px solid #e4d9c4;
   --sheet-title-transform: uppercase;
   --sheet-title-letterspacing: 0.16em;
+  --sheet-radius: 20px 5px 20px 5px;
   --motif-radius: 0;
   --motif-transform: none;
 }
@@ -620,8 +626,13 @@ button, input {
   height: 3px;
 }
 
+
 .template-modern .sheet-title {
   font-size: 1.6rem;
+}
+
+.template-modern .sheet-photo {
+  border-radius: 20px 5px 20px 5px;
 }
 
 /* =========================================================
