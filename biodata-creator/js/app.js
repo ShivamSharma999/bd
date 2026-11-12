@@ -272,7 +272,7 @@ function renderPreview() {
     <div class="sheet-heading">
       <div class="sheet-emblem">
         <span class="sheet-emblem__img">
-          <img src="assets/ganesha.png" alt="ॐ">
+          <img src="assets/ganesha.jpeg" alt="ॐ">
         </span>
         <div class="sheet-emblem__om" aria-hidden="true">ॐ</div>
       </div>
