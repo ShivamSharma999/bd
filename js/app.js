@@ -74,8 +74,8 @@ function defaultState() {
           field('Religion'),
           field('Caste'),
           field('Gothra'),
+          field('Raasi'),
           field('Mother Tongue'),
-          field('Marital Status'),
           field('Diet')
         ]
       },
@@ -97,8 +97,7 @@ function defaultState() {
           field("Father's Occupation"),
           field("Mother's Name"),
           field("Mother's Occupation"),
-          field('Siblings'),
-          field('Family Status')
+          field('Siblings')
         ]
       },
       {
@@ -314,7 +313,7 @@ function headingHtml() {
         <span class="sheet-emblem__img">
           <img src="${EMBLEM_DATA_URL}" alt="ॐ">
         </span>
-        <div class="sheet-emblem__om" aria-hidden="true">ॐ</div>
+        <div class="sheet-emblem__om" aria-hidden="true">॥ श्री गणेशाय नमः ॥</div>
       </div>
       <h1 class="sheet-title">Biodata</h1>
       ${name ? `<p class="sheet-subtitle">${escapeHtml(name)}</p>` : ''}
