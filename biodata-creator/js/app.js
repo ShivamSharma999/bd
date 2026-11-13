@@ -20,6 +20,25 @@
 
 const STORAGE_KEY = 'biodata-creator:v1';
 
+/* Size of the photo frame on the sheet, in CSS px. Keep in sync with
+   --photo-w / --photo-h in css/style.css. Uploaded photos are cropped
+   to exactly this shape so they're never stretched or squashed. */
+const PHOTO_W = 159;
+const PHOTO_H = 208;
+const PHOTO_RATIO = PHOTO_W / PHOTO_H;
+/* Stored photo resolution: 3x the frame, i.e. ~290dpi at print size. */
+const PHOTO_OUTPUT_W = PHOTO_W * 3;
+/* When a photo has to be cropped vertically, keep more of the top than
+   the bottom (0 = keep the top, 0.5 = centred) so heads aren't cut off. */
+const PHOTO_CROP_BIAS_TOP = 0.2;
+
+/* Safety gap kept free at the bottom of every page, so tiny differences
+   in font rendering between browsers can't push a row over the border. */
+const PAGE_BOTTOM_SAFETY_PX = 2;
+/* Never leave a section title with fewer rows than this stranded at the
+   bottom of a page — move the whole section to the next page instead. */
+const MIN_ROWS_BEFORE_BREAK = 2;
+
 let state = null;
 let saveTimer = null;
 
@@ -142,13 +161,41 @@ function scheduleFitOnResize() {
 /* Persistence                                                  */
 /* ---------------------------------------------------------- */
 
+/**
+ * Makes sure data read back from localStorage has the shape the rest of
+ * the app expects. Without this, a stale template id (the sheet would
+ * render completely unstyled) or a field with a missing value (a crash
+ * on `.trim()`) would break the page on every load.
+ */
+function sanitizeState(raw) {
+  if (!raw || typeof raw !== 'object' || !Array.isArray(raw.sections)) return defaultState();
+
+  const known = typeof TEMPLATES !== 'undefined' && TEMPLATES.some((t) => t.id === raw.templateId);
+
+  return {
+    templateId: known ? raw.templateId : 'classic',
+    photo:
+      typeof raw.photo === 'string' && raw.photo.startsWith('data:image/') ? raw.photo : null,
+    sections: raw.sections
+      .filter((s) => s && typeof s === 'object')
+      .map((s) => ({
+        id: typeof s.id === 'string' && s.id ? s.id : makeId('s'),
+        title: typeof s.title === 'string' ? s.title : '',
+        fields: (Array.isArray(s.fields) ? s.fields : [])
+          .filter((f) => f && typeof f === 'object')
+          .map((f) => ({
+            id: typeof f.id === 'string' && f.id ? f.id : makeId('f'),
+            label: typeof f.label === 'string' ? f.label : '',
+            value: typeof f.value === 'string' ? f.value : ''
+          }))
+      }))
+  };
+}
+
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && Array.isArray(parsed.sections)) return parsed;
-    }
+    if (raw) return sanitizeState(JSON.parse(raw));
   } catch (err) {
     console.warn('Could not read saved biodata, starting fresh.', err);
   }
@@ -235,80 +282,253 @@ function escapeHtml(str) {
 /* Rendering: live preview sheet                                */
 /* ---------------------------------------------------------- */
 
-function renderPreview() {
-  const sheet = document.getElementById('biodataPreview');
-  applyTemplateClass(sheet, state.templateId);
+/**
+ * Finds the person's name: a field labelled exactly "Name" or "Full Name"
+ * (any capitalisation). Prefers one that actually has a value. Matching
+ * loosely on "name" would wrongly pick "Father's Name" if the real name
+ * field were deleted or renamed.
+ */
+function findNameField(st) {
+  const matches = [];
+  for (const section of st.sections) {
+    for (const f of section.fields) {
+      if (/^\s*(full\s+)?name\s*$/i.test(f.label)) matches.push(f);
+    }
+  }
+  return matches.find((f) => f.value.trim() !== '') || matches[0] || null;
+}
 
-  const nameField = findFieldByLabel(state, /full name|^name$/i);
+/** HTML for the heading block (emblem, title, name) — first page only. */
+function headingHtml() {
+  const nameField = findNameField(state);
   const name = (nameField && nameField.value.trim()) || '';
 
   const photoHtml = state.photo
-    ? `<img src="${state.photo}" alt="Photograph" class="sheet-photo__img">`
+    ? `<img src="${escapeAttr(state.photo)}" alt="Photograph" class="sheet-photo__img">`
     : `<span class="sheet-photo__placeholder">Photo</span>`;
 
-  const sectionsHtml = state.sections
-    .map((section) => {
-      const filledFields = section.fields.filter((f) => f.value.trim() !== '');
-      if (filledFields.length === 0) return '';
-      const rows = filledFields
-        .map(
-          (f) => `
-        <div class="field-row">
-          <span class="field-row__label">${escapeHtml(f.label)}</span>
-          <span class="field-row__value">${escapeHtml(f.value)}</span>
-        </div>`
-        )
-        .join('');
-      return `
-        <section class="sheet-section">
-          <h2 class="sheet-section__title">${escapeHtml(section.title)}</h2>
-          <div class="sheet-section__rows">${rows}</div>
-        </section>`;
-    })
-    .join('');
-
-  sheet.innerHTML = `
+  return `
     <div class="sheet-photo">${photoHtml}</div>
     <div class="sheet-heading">
       <div class="sheet-emblem">
         <span class="sheet-emblem__img">
-          <img src="assets/ganesha.jpeg" alt="ॐ">
+          <img src="${EMBLEM_DATA_URL}" alt="ॐ">
         </span>
         <div class="sheet-emblem__om" aria-hidden="true">ॐ</div>
       </div>
       <h1 class="sheet-title">Biodata</h1>
       ${name ? `<p class="sheet-subtitle">${escapeHtml(name)}</p>` : ''}
-    </div>
-    <div class="sheet-sections">${sectionsHtml || emptyStateHtml()}</div>
-  `;
-
-  fitPreviewToContainer();
+    </div>`;
 }
 
 function emptyStateHtml() {
   return `<p class="sheet-empty">Start filling in your details on the left — they'll appear here as you type.</p>`;
 }
 
+/**
+ * Appends a new A4 page to `container` and returns handles to it.
+ * Only the first page carries the photo and heading; later pages are
+ * just the bordered frame, ready for more sections.
+ */
+function createPage(container, isFirst) {
+  const page = document.createElement('div');
+  page.className = 'biodata-page';
+  applyTemplateClass(page, state.templateId);
+  page.innerHTML = `
+    <div class="biodata-sheet">
+      ${isFirst ? headingHtml() : ''}
+      <div class="sheet-sections"></div>
+    </div>`;
+  container.appendChild(page);
+  return {
+    page,
+    sheet: page.querySelector('.biodata-sheet'),
+    sectionsEl: page.querySelector('.sheet-sections')
+  };
+}
+
+/** Builds one section's DOM. `rows` is a list of fields. */
+function createSectionEl(title, rows, isContinued) {
+  const el = document.createElement('section');
+  el.className = 'sheet-section';
+
+  const shownTitle = (title || '').trim();
+  const titleHtml = shownTitle
+    ? `<h2 class="sheet-section__title">${escapeHtml(shownTitle)}${isContinued ? ' <span class="sheet-section__contd">(contd.)</span>' : ''}</h2>`
+    : '';
+
+  el.innerHTML = `${titleHtml}<div class="sheet-section__rows"></div>`;
+  const rowsEl = el.querySelector('.sheet-section__rows');
+  rows.forEach((f) => rowsEl.appendChild(createRowEl(f)));
+  return el;
+}
+
+function createRowEl(f) {
+  const row = document.createElement('div');
+  row.className = 'field-row';
+  row.innerHTML = `
+    <span class="field-row__label">${escapeHtml(f.label)}</span>
+    <span class="field-row__value">${escapeHtml(f.value)}</span>`;
+  return row;
+}
+
+/**
+ * True if everything currently on the page still sits inside the frame's
+ * padding box. Uses offset* metrics, which are layout values and so are
+ * unaffected by the CSS scale() used to fit the preview to the screen.
+ */
+function pageContentFits(ctx) {
+  const last = ctx.sectionsEl.lastElementChild;
+  if (!last) return true;
+  const padBottom = parseFloat(getComputedStyle(ctx.sheet).paddingBottom) || 0;
+  const limit = ctx.sheet.clientHeight - padBottom - PAGE_BOTTOM_SAFETY_PX;
+  return last.offsetTop + last.offsetHeight <= limit;
+}
+
+/**
+ * Lays the sheet out as real A4 pages. Content is added one row at a time
+ * and measured by the browser itself (so it's right for any font, any
+ * template and any screen). When a row would cross the bottom of the
+ * frame it moves to a fresh page, which gets its own border and margins.
+ * A row is never split across two pages.
+ */
+function renderPreview() {
+  const container = document.getElementById('biodataPreview');
+  container.innerHTML = '';
+
+  // Only sections with at least one filled-in field are shown.
+  const sections = state.sections
+    .map((s) => ({
+      title: s.title,
+      rows: s.fields.filter((f) => f.value.trim() !== '')
+    }))
+    .filter((s) => s.rows.length > 0);
+
+  let ctx = createPage(container, true);
+
+  if (sections.length === 0) {
+    ctx.sectionsEl.innerHTML = emptyStateHtml();
+    fitPreviewToContainer();
+    return;
+  }
+
+  for (const sec of sections) {
+    let remaining = sec.rows.slice();
+    let continued = false;
+
+    while (remaining.length > 0) {
+      const secEl = createSectionEl(sec.title, [], continued);
+      const rowsEl = secEl.querySelector('.sheet-section__rows');
+      ctx.sectionsEl.appendChild(secEl);
+
+      // Add rows until the page is full.
+      let placed = 0;
+      for (const f of remaining) {
+        rowsEl.appendChild(createRowEl(f));
+        if (!pageContentFits(ctx)) {
+          rowsEl.removeChild(rowsEl.lastChild);
+          break;
+        }
+        placed++;
+      }
+
+      if (placed === remaining.length) break; // whole (rest of the) section fit
+
+      const pageHasOtherContent = ctx.sectionsEl.children.length > 1;
+      const tooFewToSplit = placed < Math.min(MIN_ROWS_BEFORE_BREAK, remaining.length);
+
+      if (tooFewToSplit && pageHasOtherContent) {
+        // Don't strand a title with one lonely row — start the section on a
+        // fresh page instead, and retry it there.
+        ctx.sectionsEl.removeChild(secEl);
+        ctx = createPage(container, false);
+        continue;
+      }
+
+      if (placed === 0) {
+        // A single row taller than an entire page: place it anyway so we
+        // always make progress (its overflow is clipped by the frame).
+        rowsEl.appendChild(createRowEl(remaining[0]));
+        placed = 1;
+      } else if (remaining.length - placed === 1 && placed > MIN_ROWS_BEFORE_BREAK) {
+        // Avoid carrying a single orphan row onto the next page.
+        rowsEl.removeChild(rowsEl.lastChild);
+        placed--;
+      }
+
+      remaining = remaining.slice(placed);
+      continued = true;
+      if (remaining.length > 0) ctx = createPage(container, false);
+    }
+  }
+
+  fitPreviewToContainer();
+}
+
 /* ---------------------------------------------------------- */
 /* Photo handling                                               */
 /* ---------------------------------------------------------- */
 
+/**
+ * Crops `img` to exactly the photo frame's shape (PHOTO_RATIO) and returns
+ * it as a JPEG data URL.
+ *
+ * Why crop here rather than letting CSS `object-fit: cover` do it: the
+ * browser honours object-fit on screen, but html2canvas (which builds the
+ * PDF) does not — it just stretches the image to fill the frame. A photo
+ * that already has the frame's exact shape needs no such help, so it looks
+ * identical on screen, in the PDF and in print.
+ */
+function cropToFrame(img) {
+  const srcW = img.naturalWidth || img.width;
+  const srcH = img.naturalHeight || img.height;
+
+  // The largest region of the source that has the frame's shape.
+  let cropW = srcW;
+  let cropH = srcW / PHOTO_RATIO;
+  if (cropH > srcH) {
+    cropH = srcH;
+    cropW = srcH * PHOTO_RATIO;
+  }
+  const sx = (srcW - cropW) / 2; // centred horizontally
+  const sy = (srcH - cropH) * PHOTO_CROP_BIAS_TOP; // biased towards the top
+
+  // Don't upscale small photos beyond what they really contain.
+  const outW = Math.round(Math.min(PHOTO_OUTPUT_W, cropW));
+  const outH = Math.round(outW / PHOTO_RATIO);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = outW;
+  canvas.height = outH;
+  const ctx = canvas.getContext('2d');
+  // JPEG has no transparency: without a white backdrop, transparent areas
+  // of a PNG would turn black.
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, outW, outH);
+  ctx.drawImage(img, sx, sy, cropW, cropH, 0, 0, outW, outH);
+  return canvas.toDataURL('image/jpeg', 0.92);
+}
+
 function handlePhotoFile(file) {
-  if (!file || !file.type.startsWith('image/')) return;
+  if (!file) return;
+  if (!file.type.startsWith('image/')) {
+    alert('Please choose an image file (JPG or PNG).');
+    return;
+  }
+
+  const fail = () =>
+    alert(
+      "Sorry, that image couldn't be read. Try a JPG or PNG — some formats " +
+        '(such as HEIC from iPhones) aren\'t supported by browsers.'
+    );
 
   const reader = new FileReader();
+  reader.onerror = fail;
   reader.onload = () => {
     const img = new Image();
+    img.onerror = fail;
     img.onload = () => {
-      // Downscale large photos so localStorage / the PDF stay light.
-      const maxWidth = 600;
-      const scale = Math.min(1, maxWidth / img.width);
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width * scale;
-      canvas.height = img.height * scale;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      state.photo = canvas.toDataURL('image/jpeg', 0.9);
+      state.photo = cropToFrame(img);
       renderPhotoControl();
       renderPreview();
       scheduleSave();
@@ -316,6 +536,24 @@ function handlePhotoFile(file) {
     img.src = reader.result;
   };
   reader.readAsDataURL(file);
+}
+
+/**
+ * Photos saved by earlier versions of the app were stored uncropped, so
+ * they would still be stretched in the PDF. Re-crop any such photo once.
+ */
+function upgradeStoredPhoto() {
+  if (!state.photo) return;
+  const img = new Image();
+  img.onload = () => {
+    const ratio = img.naturalWidth / img.naturalHeight;
+    if (Math.abs(ratio - PHOTO_RATIO) / PHOTO_RATIO <= 0.01) return; // already the right shape
+    state.photo = cropToFrame(img);
+    renderPhotoControl();
+    renderPreview();
+    scheduleSave();
+  };
+  img.src = state.photo;
 }
 
 function renderPhotoControl() {
@@ -359,6 +597,16 @@ function initSectionsEditorEvents() {
     if (!section) return;
 
     if (action === 'delete-section') {
+      // The ✕ is small and easy to hit by accident (especially on a phone),
+      // and there is no undo — so confirm, but only if real data is at stake.
+      const filled = section.fields.filter((f) => f.value.trim() !== '').length;
+      if (filled > 0) {
+        const label = section.title.trim() || 'this section';
+        const sure = confirm(
+          `Delete "${label}" and the ${filled} detail${filled === 1 ? '' : 's'} you've filled in?`
+        );
+        if (!sure) return;
+      }
       state.sections = state.sections.filter((s) => s.id !== sectionId);
       renderSectionsEditor();
       renderPreview();
@@ -447,6 +695,9 @@ function initGlobalControls() {
 
   document.getElementById('photoInput').addEventListener('change', (e) => {
     const file = e.target.files && e.target.files[0];
+    // Clear the input so choosing the *same* file again (e.g. after
+    // pressing Remove) still fires a change event.
+    e.target.value = '';
     handlePhotoFile(file);
   });
 
@@ -483,10 +734,17 @@ document.addEventListener('DOMContentLoaded', () => {
   initSectionsEditorEvents();
   initGlobalControls();
   fitPreviewToContainer();
+  upgradeStoredPhoto();
 
   window.addEventListener('resize', scheduleFitOnResize);
 
-  if (document.fonts && document.fonts.ready) {
-    document.fonts.ready.then(fitPreviewToContainer).catch(() => {});
+  // Web fonts arrive after the first render and change how tall each row
+  // is, which changes where the page breaks fall — so re-lay-out the pages
+  // (not just re-scale them) once fonts have loaded.
+  if (document.fonts) {
+    if (document.fonts.ready) document.fonts.ready.then(renderPreview).catch(() => {});
+    if (document.fonts.addEventListener) {
+      document.fonts.addEventListener('loadingdone', renderPreview);
+    }
   }
 });

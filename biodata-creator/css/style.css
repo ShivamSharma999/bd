@@ -13,10 +13,23 @@
   --rose: #b85c6b;
   --danger: #a23b3b;
 
-  --font-display: 'Marcellus', 'Georgia', serif;
+  --font-display: 'Marcellus', 'Noto Sans Devanagari', 'Georgia', serif;
   --font-hero: 'Yatra One', 'Marcellus', serif;
-  --font-body: 'Karla', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-body: 'Karla', 'Noto Sans Devanagari', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-devanagari: 'Noto Sans Devanagari', 'Karla', sans-serif;
+
+  /* One A4 page at 96dpi. The height is 1122px (not 1123) on purpose:
+     A4 is 1122.5px tall, and a page even 1px taller than that makes the
+     PDF/print engines spill a blank sliver onto an extra page. */
+  --page-w: 794px;
+  --page-h: 1122px;
+  /* White-space between the paper edge and the decorative border, so the
+     border is never flush with (or clipped by) the edge of the paper. */
+  --page-margin: 20px;
+
+  /* Photo frame — keep in sync with PHOTO_W / PHOTO_H in js/app.js. */
+  --photo-w: 159px;
+  --photo-h: 208px;
 }
 
 * { box-sizing: border-box; }
@@ -217,7 +230,7 @@ button, input {
 
 .photo-control__preview {
   width: 84px;
-  height: 104px;
+  aspect-ratio: 159 / 208; /* same shape as the photo frame on the sheet */
   flex-shrink: 0;
   border: 1.5px dashed var(--sand-line);
   border-radius: 6px;
@@ -440,18 +453,40 @@ button, input {
    (each .template-* class below only sets custom properties
    and a few structural tweaks; the rules here consume them)
    ========================================================= */
+/* The preview is a stack of A4 pages (built by renderPreview() in
+   js/app.js). Every page is self-contained: its own paper margin,
+   its own border and its own inner padding — so the border and
+   margins repeat on each page instead of being sliced by a page break. */
+.biodata-pages {
+  width: var(--page-w);
+  display: flex;
+  flex-direction: column;
+  gap: 24px; /* on-screen gap between pages only; no effect on the PDF */
+}
+
+/* The "paper". Carries the template background so the area between the
+   paper edge and the border is tinted too, not a stark white band. */
+.biodata-page {
+  width: var(--page-w);
+  height: var(--page-h);
+  flex-shrink: 0;
+  padding: var(--page-margin);
+  background: var(--sheet-bg);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+}
+
+/* The bordered frame inside the paper. */
 .biodata-sheet {
   --sheet-pad: 48px;
-  width: 794px;
-  min-height: 1000px;
-  flex-shrink: 0;
-  background: var(--sheet-bg);
+  width: 100%;
+  height: 100%;
   color: var(--sheet-ink);
   border: var(--sheet-border-css);
   border-radius: var(--sheet-radius, 0);
   padding: var(--sheet-pad);
   position: relative;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
   font-family: var(--font-body);
 }
 
@@ -459,8 +494,8 @@ button, input {
   position: absolute;
   top: var(--sheet-pad);
   right: var(--sheet-pad);
-  width: 159px;
-  height: 208px;
+  width: var(--photo-w);
+  height: var(--photo-h);
   border: 2px solid var(--sheet-accent);
   background: rgba(0, 0, 0, 0.03);
   display: flex;
@@ -469,10 +504,14 @@ button, input {
   overflow: hidden;
 }
 
+/* The uploaded photo is already cropped to exactly the frame's shape
+   (see cropToFrame() in js/app.js), so it is simply drawn 1:1.
+   We deliberately don't rely on `object-fit` here: html2canvas, which
+   builds the PDF, ignores it and would stretch the image. */
 .sheet-photo__img {
+  display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
 }
 
 .sheet-photo__placeholder {
@@ -483,6 +522,9 @@ button, input {
 
 .sheet-heading {
   text-align: center;
+  /* Always taller than the photo, so the sections below can never run
+     underneath it, however little text the heading contains. */
+  min-height: calc(var(--photo-h) + 8px);
 }
 
 .sheet-emblem {
@@ -526,13 +568,14 @@ button, input {
   opacity: 0.85;
 }
 
-.sheet-sections {
+/* Continuation pages start right at the top of the frame; only the first
+   page (which has a heading above the sections) needs breathing room. */
+.sheet-heading + .sheet-sections {
   margin-top: 20px;
 }
 
 .sheet-section {
   margin-bottom: 20px;
-  page-break-inside: avoid;
   break-inside: avoid;
 }
 
@@ -549,6 +592,15 @@ button, input {
   align-items: center;
 }
 
+.sheet-section__contd {
+  margin-left: 0.5em;
+  font-size: 0.72em;
+  font-weight: 400;
+  opacity: 0.7;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
 .sheet-section__title::before {
   content: '';
   width: 9px;
@@ -562,11 +614,19 @@ button, input {
 
 .field-row {
   display: grid;
-  grid-template-columns: 190px 1fr;
+  grid-template-columns: 190px minmax(0, 1fr);
   column-gap: 14px;
   padding: 5px 0;
   border-bottom: 1px dotted rgba(0, 0, 0, 0.12);
   font-size: 0.92rem;
+}
+
+/* Long unbroken strings (an email address, a URL) must wrap instead of
+   spilling out past the border. */
+.field-row__label,
+.field-row__value {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .field-row__label {
@@ -649,8 +709,11 @@ button, input {
 }
 
 .template-royal .sheet-heading {
-  margin: -48px -48px 26px -48px;
-  padding: 30px 48px 44px;
+  /* The banner bleeds out to the edges of the frame, over its padding. */
+  margin: calc(-1 * var(--sheet-pad)) calc(-1 * var(--sheet-pad)) 26px;
+  padding: 30px var(--sheet-pad) 44px;
+  /* The photo sits inside the banner, so the banner must clear it too. */
+  min-height: calc(var(--sheet-pad) + var(--photo-h) + 28px);
   background: linear-gradient(180deg, #16345c 0%, #0f2745 100%);
   border-bottom: 4px solid #c9a227;
 }
@@ -666,6 +729,16 @@ button, input {
   border-color: #c9a227;
 }
 
+/* The emblem is a JPEG with a white background, which would look like a
+   stray white rectangle on the navy banner. Frame it as a deliberate
+   badge instead. */
+.template-royal .sheet-emblem__img {
+  background: #ffffff;
+  border: 2px solid #c9a227;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
 /* =========================================================
    Template: Blush (soft floral)
    ========================================================= */
@@ -679,10 +752,6 @@ button, input {
   --sheet-radius: 26px;
   --motif-radius: 50%;
   --motif-transform: none;
-}
-
-.template-floral.biodata-sheet {
-  overflow: hidden;
 }
 
 .template-floral .sheet-photo {
@@ -708,19 +777,23 @@ button, input {
     display: block;
   }
 
+  .app-layout {
+    min-height: 0;
+  }
+
+  /* Forced page breaks are unreliable inside flex containers (they can
+     produce blank sheets), so lay everything out as plain blocks. */
   .preview-panel {
-    padding: 0;
-  }
-
-  .preview-scroll {
-    background: none;
-    padding: 0;
     display: block;
+    padding: 0;
   }
 
-  .biodata-sheet {
-    box-shadow: none;
-    margin: 0 auto;
+  /* The scroll box is only a screen convenience. Left as a real box it
+     makes Chrome insert a blank sheet after the first and last page, so
+     in print it is removed from the layout and the pages sit directly in
+     the document flow. */
+  .preview-scroll {
+    display: contents;
   }
 
   .sheet-frame {
@@ -729,7 +802,29 @@ button, input {
     height: auto !important;
   }
 
+  /* Each on-screen page is exactly one sheet of paper: break after every
+     page, but not after the last one (that would print a blank sheet). */
+  .biodata-pages {
+    display: block;
+  }
+
+  .biodata-page {
+    display: block;
+    box-shadow: none;
+    break-after: page;
+    page-break-after: always;
+    /* Make sure borders and tinted backgrounds are actually printed. */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .biodata-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
   @page {
+    size: A4;
     margin: 0;
   }
 }
